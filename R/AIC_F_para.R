@@ -38,10 +38,13 @@ AIC_F_para <- function(bw, data_input, ID_list, formula, p, longlat, adaptive, k
   wgt <- 0
   cl <- parallel::makeCluster(cluster.number)
   doParallel::registerDoParallel(cl)
-  AICscore_vector <- foreach(ID_individual = ID_list_single, .combine = c) %dopar%
+  result_list <- foreach(ID_individual = ID_list_single, .combine = rbind) %dopar%
   {
     data_input$aim[data_input$id == ID_individual] <- 1
     data_input$aim[data_input$id != ID_individual] <- 0
+    ### 0.2.0 to get the trace vector
+    aim_number <- sum(data_input$aim)
+    ### 0.2.0
     subsample <- data_input
     subsample <- subsample[order(-subsample$aim),]
     dp_locat_subsample <- dplyr::select(subsample, 'X', 'Y')
@@ -54,7 +57,7 @@ AIC_F_para <- function(bw, data_input, ID_list, formula, p, longlat, adaptive, k
     subsample$wgt <- as.vector(weight)
     subsample <- subsample[(subsample$wgt > 0.01),]
     Psubsample <- plm::pdata.frame(subsample, index = index, drop.index = FALSE, row.names = FALSE,
-                                   stringsAsFactors = default.stringsAsFactors())
+                                   stringsAsFactors = FALSE)
     plm_subsample <- try(plm::plm(formula=formula, model=model, data=Psubsample,
                                   effect = effect, index=index, weights = wgt,
                                   random.method = random.method), silent=TRUE)
@@ -99,22 +102,58 @@ AIC_F_para <- function(bw, data_input, ID_list, formula, p, longlat, adaptive, k
       X_trans <- as.matrix(X_trans)
       W <- as.vector(Psubsample$wgt)
       P <- try(X_trans %*%  solve(t(X_trans) %*% (W * X_trans)) %*% t(X_trans) * W, silent=TRUE)
+      ### 0.2.0
       if(!inherits(P, "try-error"))
       {
-        tr_hatmat <- sum(diag(P))
-        n <- nrow(Psubsample)
-        AICscore <- 2*n*log(sd(plm_subsample$residuals)) + n*log(2*pi) +  n * (tr_hatmat + n) / (n - 2 - tr_hatmat)
-      } else {
-        AICscore <- Inf
+        sub_tr_hatmat <- diag(P)
+        sub_tr_hatmat.aim <- sub_tr_hatmat[1:aim_number]
+        sub_resid <- plm_subsample$residuals
+        sub_resid.aim <- sub_resid[1:aim_number]
       }
+      else
+      {
+        sub_tr_hatmat.aim <- Inf
+        sub_resid.aim <- Inf
+      }
+      sub_result_list <- cbind(sub_tr_hatmat.aim, sub_resid.aim)
+      sub_result_list <- as.data.frame(sub_result_list)
+      ### 0.2.0
+      ### 0.1.1
+      #if(!inherits(P, "try-error"))
+      #{
+      #  tr_hatmat <- sum(diag(P))
+      #  n <- nrow(Psubsample)
+      #  AICscore <- 2*n*log(sd(plm_subsample$residuals)) + n*log(2*pi) +  n * (tr_hatmat + n) / (n - 2 - tr_hatmat)
+      #}
+      #else
+      #{
+      #    AICscore <- Inf
+      #}
+      ### 0.1.1
     }
     else
     {
-        AICscore <- Inf
+      ### 0.1.1
+      #AICscore <- Inf
+      ### 0.1.1
+
+      ###0.2.0
+      sub_tr_hatmat.aim <- Inf
+      sub_resid.aim <- Inf
+      sub_result_list <- cbind(sub_tr_hatmat.aim, sub_resid.aim)
+      sub_result_list <- as.data.frame(sub_result_list)
     }
   }
   parallel::stopCluster(cl)
-  mean_AICscore <- mean(AICscore_vector)
-  cat("Fixed Bandwidth:", bw, "AIC score:", mean_AICscore, "\n")
-  return(mean_AICscore)
+  ### 0.1.1
+  #mean_AICscore <- mean(AICscore_vector)
+  #cat("Fixed Bandwidth:", bw, "AIC score:", mean_AICscore, "\n")
+  ### 0.1.1
+  ### 0.2.0
+  n <- nrow(data_input)
+  tr_hatmat <- sum(result_list[,1])
+  AICscore <- 2*n*log(sd(result_list[,2])) + n*log(2*pi) +  n * (tr_hatmat + n) / (n - 2 - tr_hatmat)
+  cat("Fixed Bandwidth:", bw, "AIC score:", AICscore, "\n")
+  ### 0.2.0
+  return(AICscore)
 }
