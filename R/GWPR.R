@@ -54,7 +54,7 @@
 #'    pop_density + summer_tmmx + winter_tmmx + summer_rmax + winter_rmax
 #'
 #' #precomputed bandwidth
-#' bw.AIC.Fix <- 2.010529
+#' bw.AIC.Fix <- 1.5
 #'
 #' result.F.AIC <- GWPR(bw = bw.AIC.Fix, formula = formula.GWPR, data = TransAirPolCalif,
 #'                      index = c("GEOID", "year"), SDF = California, adaptive = FALSE,
@@ -92,7 +92,9 @@ GWPR <- function(formula, data, index, SDF, bw = NULL, adaptive = FALSE, p = 2,
 
   # Data preparation
   varibale_name_in_equation <- all.vars(formula)
-  data <- dplyr::select(data, index, varibale_name_in_equation)
+  #data <- dplyr::select(data, index, varibale_name_in_equation)
+  data <- dplyr::select(data, dplyr::all_of(index), dplyr::all_of(varibale_name_in_equation))
+  ##### 22.6.17 we change this, it is the problem on linux
   data$raw_order_data <- 1:nrow(data)
   raw_id <- index[1]
   colnames(data)[1] <- "id"
